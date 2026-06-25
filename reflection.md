@@ -5,7 +5,15 @@
 **a. Initial design**
 
 - Briefly describe your initial UML design.
+  My initial design is to have 3 different classes :
+  Pet information
+  Pet tasks
+  Time Constraint
 - What classes did you include, and what responsibilities did you assign to each?
+  Classes : |Attributes :
+  Pet information |Pet breed, name, medication
+  Pet tasks | Walks, feedings, medication administration
+  Time Constraints | avaliability , duration of tasks, repetition
 
 **b. Design changes**
 
