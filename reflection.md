@@ -11,14 +11,16 @@
   Time Constraint
 - What classes did you include, and what responsibilities did you assign to each?
   Classes : |Attributes :
-  Pet information |Pet breed, name, medication
-  Pet tasks | Walks, feedings, medication administration
+  Pet information |Pet breed, name, pet age
+  Pet tasks | Walks, feedings, pet sitting
   Time Constraints | avaliability , duration of tasks, repetition
 
 **b. Design changes**
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+  After I asked Claude about relationships and bottle necks. It gave me feedback on my skeleton not being connected to one another. A task list attribute was added to pet information to list tasks needed for that specific pet. All 3 classes have been added a **init** constructor and corrections have been made to return data types.
+  On the diagram it was updated by adding a relationship where Petinformation manages PetTasks and PetTasks has TimeConstraints.
 
 ---
 

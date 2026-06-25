@@ -3,6 +3,10 @@ class PetInformation:
     age: int
     breed: str
     color: str
+    tasks: list  # List of PetTasks
+
+    def __init__(self, name: str, age: int, breed: str, color: str):
+        ...
 
     def getPetName(self) -> str:
         ...
@@ -18,6 +22,11 @@ class PetInformation:
 
 
 class PetTasks:
+    timeConstraint: 'TimeConstraint'
+
+    def __init__(self, timeConstraint: 'TimeConstraint'):
+        ...
+
     def feedPet(self) -> str:
         ...
 
@@ -29,9 +38,12 @@ class PetTasks:
 
 
 class TimeConstraint:
-    taskDuration: str
-    availability: str
+    taskDuration: int
+    availability: int
     repetition: str
+
+    def __init__(self, taskDuration: int, availability: int, repetition: str):
+        ...
 
     def getTaskDuration(self) -> int:
         ...

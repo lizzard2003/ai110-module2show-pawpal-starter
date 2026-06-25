@@ -26,6 +26,6 @@ classDiagram
         +getRepetition() : String
     }
 
-    PetInformation "1" --> "0..*" PetTasks : has
-    PetInformation "1" --> "0..*" TimeConstraint : constrained by
+    PetInformation "1" --> "0..*" PetTasks : manages
+    PetTasks "1" --> "1" TimeConstraint : has
 ```
