@@ -101,6 +101,9 @@ class Task:
     def markComplete(self) -> None:
         self.completion_status = True
 
+    def mark_complete(self) -> None:
+        self.markComplete()
+
     def resetTask(self) -> None:
         self.completion_status = False
 
