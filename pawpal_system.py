@@ -10,6 +10,17 @@ RECURRENCE_DELTAS = {
     "weekly": timedelta(weeks=1),
 }
 
+# Named priority levels mapped to numeric weights. A higher weight means the
+# task is more important and should bubble to the top of a prioritized plan.
+# Keeping the levels named (not raw numbers) keeps tasks readable while still
+# giving the scheduler a number to sort on. 'medium' is the default.
+PRIORITY_WEIGHTS = {
+    "low": 1,
+    "medium": 2,
+    "high": 3,
+}
+DEFAULT_PRIORITY = "medium"
+
 
 def add_one_month(day: date) -> date:
     """Return the date one calendar month after `day`, keeping the day-of-month.
@@ -97,7 +108,8 @@ class Scheduler:
         return self.owner.getAllTasks()
 
     def filter_tasks(self, pet: 'PetInformation' = None, pet_name: str = None,
-                     completed: bool = None, frequency: str = None) -> list:
+                     completed: bool = None, frequency: str = None,
+                     priority: str = None) -> list:
         """Return tasks filtered by any combination of the given criteria.
 
         Every argument is optional; passing None means "don't filter on this".
@@ -105,6 +117,7 @@ class Scheduler:
         - pet_name:   only tasks belonging to the pet with this name (case-insensitive)
         - completed:  True for done tasks, False for outstanding ones
         - frequency:  only tasks with this frequency (case-insensitive)
+        - priority:   only tasks at this priority level (case-insensitive)
 
         Pass either `pet` or `pet_name` to filter by pet, not both. Filtering by a
         `pet_name` that no pet matches returns an empty list.
@@ -125,6 +138,9 @@ class Scheduler:
         if frequency is not None:
             freq = frequency.lower()
             tasks = [t for t in tasks if t.frequency == freq]
+        if priority is not None:
+            prio = priority.lower()
+            tasks = [t for t in tasks if t.priority == prio]
         return tasks
 
     def getTasksByFrequency(self, frequency: str) -> list:
@@ -139,6 +155,10 @@ class Scheduler:
     def getTasksByPet(self, pet: 'PetInformation') -> list:
         """Return all tasks for a single pet."""
         return self.filter_tasks(pet=pet)
+
+    def getTasksByPriority(self, priority: str) -> list:
+        """Return tasks at a given priority level (case-insensitive)."""
+        return self.filter_tasks(priority=priority)
 
     def getCompletedTasks(self) -> list:
         """Return tasks that have been completed."""
@@ -160,6 +180,39 @@ class Scheduler:
         if tasks is None:
             tasks = self.getAllTasks()
         return sorted(tasks, key=lambda task: (task.due_date, timeToMinutes(task.time)))
+
+    def sort_by_priority(self, tasks: list = None) -> list:
+        """Return tasks ordered by priority weight, most important first.
+
+        Sorts the given task list, or all of the owner's tasks when none is
+        passed. The primary key is the numeric priority weight in DESCENDING
+        order (high > medium > low), so the tasks that matter most surface at the
+        top of the plan. Ties are broken chronologically — by (due date,
+        minutes-since-midnight) — so within one priority level the schedule still
+        reads in the order the owner will actually do it. The input list is not
+        mutated.
+        """
+        if tasks is None:
+            tasks = self.getAllTasks()
+        return sorted(
+            tasks,
+            key=lambda task: (
+                -task.getPriorityWeight(),
+                task.due_date,
+                timeToMinutes(task.time),
+            ),
+        )
+
+    def getPrioritizedSchedule(self, day: str) -> list:
+        """Return a given day's plan ordered by priority, then by time.
+
+        Combines the recurrence mapping of getScheduleForDay() with the priority
+        ordering of sort_by_priority(): 'today'/'daily' select the daily tasks,
+        'weekly'/'monthly' select those recurrences, and the result is ranked so
+        the highest-priority tasks come first (ties broken chronologically).
+        """
+        frequency = "daily" if day.lower() in ("today", "daily") else day.lower()
+        return self.sort_by_priority(self.filter_tasks(frequency=frequency))
 
     def detectConflicts(self) -> list:
         """Find tasks that collide on the same date and clock time.
@@ -289,15 +342,18 @@ class Task:
     frequency: str
     completion_status: bool
     due_date: date
+    priority: str
 
     def __init__(self, description: str, time: str, frequency: str,
-                 due_date: date = None):
+                 due_date: date = None, priority: str = DEFAULT_PRIORITY):
         """Initialize task details and set completion status false.
 
         Validates the time format and normalizes frequency to lowercase so that
         sorting, filtering, and recurrence checks stay consistent. `due_date`
         defaults to today when not given, so existing three-argument calls keep
-        working.
+        working. `priority` is a named level ('low'/'medium'/'high', case-
+        insensitive) backed by a numeric weight; it defaults to 'medium' so
+        older calls that omit it keep working.
         """
         timeToMinutes(time)  # raises ValueError on a malformed time
         frequency = frequency.lower()
@@ -305,11 +361,18 @@ class Task:
             raise ValueError(
                 f"Invalid frequency '{frequency}': expected one of {VALID_FREQUENCIES}."
             )
+        priority = priority.lower()
+        if priority not in PRIORITY_WEIGHTS:
+            raise ValueError(
+                f"Invalid priority '{priority}': expected one of "
+                f"{tuple(PRIORITY_WEIGHTS)}."
+            )
         self.description = description
         self.time = time
         self.frequency = frequency
         self.completion_status = False
         self.due_date = due_date if due_date is not None else date.today()
+        self.priority = priority
 
     def getTimeInMinutes(self) -> int:
         """Return the task's time as minutes since midnight (handy for sorting)."""
@@ -327,7 +390,8 @@ class Task:
         timedelta; monthly advances by one calendar month (same day-of-month,
         clamped for short months) via add_one_month(). The date advances from this
         task's own due date, not from today, so completing a task late still lands
-        the next one on the right slot. A frequency that does not recur returns None.
+        the next one on the right slot. The follow-up keeps the same priority. A
+        frequency that does not recur returns None.
         """
         if self.frequency == "monthly":
             next_due = add_one_month(self.due_date)
@@ -336,7 +400,8 @@ class Task:
             if delta is None:
                 return None
             next_due = self.due_date + delta
-        return Task(self.description, self.time, self.frequency, due_date=next_due)
+        return Task(self.description, self.time, self.frequency,
+                    due_date=next_due, priority=self.priority)
 
     def getDescription(self) -> str:
         """Return the task description."""
@@ -349,6 +414,14 @@ class Task:
     def getFrequency(self) -> str:
         """Return the task frequency."""
         return self.frequency
+
+    def getPriority(self) -> str:
+        """Return the task's named priority level ('low'/'medium'/'high')."""
+        return self.priority
+
+    def getPriorityWeight(self) -> int:
+        """Return the task's numeric priority weight (higher = more important)."""
+        return PRIORITY_WEIGHTS[self.priority]
 
     def getCompletionStatus(self) -> bool:
         """Return whether the task is completed."""

@@ -172,6 +172,44 @@ class TestTask:
 
 
 # --------------------------------------------------------------------------- #
+# Task: priority                                                               #
+# --------------------------------------------------------------------------- #
+
+class TestTaskPriority:
+    def test_default_priority_is_medium(self):
+        task = Task("Feed", "08:00", "daily")
+        assert task.getPriority() == "medium"
+        assert task.getPriorityWeight() == 2
+
+    @pytest.mark.parametrize(
+        "level,weight",
+        [("low", 1), ("medium", 2), ("high", 3)],
+    )
+    def test_priority_levels_map_to_weights(self, level, weight):
+        task = Task("Feed", "08:00", "daily", priority=level)
+        assert task.getPriority() == level
+        assert task.getPriorityWeight() == weight
+
+    def test_priority_normalized_to_lowercase(self):
+        assert Task("x", "08:00", "daily", priority="HIGH").getPriority() == "high"
+        assert Task("x", "08:00", "daily", priority="Low").getPriority() == "low"
+
+    def test_invalid_priority_rejected(self):
+        with pytest.raises(ValueError):
+            Task("x", "08:00", "daily", priority="urgent")
+
+    def test_higher_priority_has_greater_weight(self):
+        high = Task("x", "08:00", "daily", priority="high")
+        low = Task("y", "08:00", "daily", priority="low")
+        assert high.getPriorityWeight() > low.getPriorityWeight()
+
+    def test_next_occurrence_keeps_priority(self):
+        task = Task("Vet", "09:00", "monthly", due_date=date(2026, 1, 1), priority="high")
+        follow_up = task.next_occurrence()
+        assert follow_up.getPriority() == "high"
+
+
+# --------------------------------------------------------------------------- #
 # PetInformation                                                               #
 # --------------------------------------------------------------------------- #
 
@@ -397,6 +435,83 @@ class TestSchedulerSorting:
     def test_get_schedule_for_day_weekly(self, scenario):
         scheduler, tasks = scenario
         assert scheduler.getScheduleForDay("weekly") == [tasks["groom_rex"]]
+
+
+# --------------------------------------------------------------------------- #
+# Scheduler: priority                                                          #
+# --------------------------------------------------------------------------- #
+
+class TestSchedulerPriority:
+    def test_sort_by_priority_highest_first(self):
+        scheduler = Scheduler(Owner("Liz"))
+        d = date(2026, 3, 1)
+        low = Task("low", "08:00", "daily", due_date=d, priority="low")
+        high = Task("high", "08:00", "daily", due_date=d, priority="high")
+        med = Task("med", "08:00", "daily", due_date=d, priority="medium")
+        result = scheduler.sort_by_priority([low, high, med])
+        assert result == [high, med, low]
+
+    def test_sort_by_priority_breaks_ties_chronologically(self):
+        # Same priority: earlier (date, time) wins.
+        scheduler = Scheduler(Owner("Liz"))
+        d = date(2026, 3, 1)
+        evening = Task("evening", "18:00", "daily", due_date=d, priority="high")
+        morning = Task("morning", "08:00", "daily", due_date=d, priority="high")
+        assert scheduler.sort_by_priority([evening, morning]) == [morning, evening]
+
+    def test_priority_outranks_earlier_time(self):
+        # A high-priority evening task still comes before a low-priority morning one.
+        scheduler = Scheduler(Owner("Liz"))
+        d = date(2026, 3, 1)
+        low_morning = Task("low morning", "08:00", "daily", due_date=d, priority="low")
+        high_evening = Task("high evening", "18:00", "daily", due_date=d, priority="high")
+        result = scheduler.sort_by_priority([low_morning, high_evening])
+        assert result == [high_evening, low_morning]
+
+    def test_sort_by_priority_does_not_mutate_input(self):
+        scheduler = Scheduler(Owner("Liz"))
+        low = Task("low", "08:00", "daily", priority="low")
+        high = Task("high", "08:00", "daily", priority="high")
+        original = [low, high]
+        result = scheduler.sort_by_priority(original)
+        assert result == [high, low]
+        assert original == [low, high]  # unchanged
+
+    def test_sort_by_priority_defaults_to_all_tasks(self):
+        owner = Owner("Liz")
+        low = Task("low", "08:00", "daily", priority="low")
+        high = Task("high", "09:00", "daily", priority="high")
+        owner.addPet(make_pet_with_tasks("Rex", [low, high]))
+        assert Scheduler(owner).sort_by_priority() == [high, low]
+
+    def test_filter_by_priority(self):
+        owner = Owner("Liz")
+        high = Task("high", "08:00", "daily", priority="high")
+        low = Task("low", "09:00", "daily", priority="low")
+        owner.addPet(make_pet_with_tasks("Rex", [high, low]))
+        scheduler = Scheduler(owner)
+        assert scheduler.getTasksByPriority("high") == [high]
+        assert scheduler.filter_tasks(priority="LOW") == [low]  # case-insensitive
+
+    def test_filter_combines_priority_with_frequency(self):
+        owner = Owner("Liz")
+        high_daily = Task("hd", "08:00", "daily", priority="high")
+        high_weekly = Task("hw", "09:00", "weekly", priority="high")
+        low_daily = Task("ld", "10:00", "daily", priority="low")
+        owner.addPet(make_pet_with_tasks("Rex", [high_daily, high_weekly, low_daily]))
+        result = Scheduler(owner).filter_tasks(frequency="daily", priority="high")
+        assert result == [high_daily]
+
+    def test_get_prioritized_schedule_selects_and_ranks(self):
+        owner = Owner("Liz")
+        d = date(2026, 3, 1)
+        low_daily = Task("low daily", "07:00", "daily", due_date=d, priority="low")
+        high_daily = Task("high daily", "18:00", "daily", due_date=d, priority="high")
+        weekly = Task("weekly", "08:00", "weekly", due_date=d, priority="high")
+        owner.addPet(make_pet_with_tasks("Rex", [low_daily, high_daily, weekly]))
+        scheduler = Scheduler(owner)
+        # 'today' -> daily only, ranked high-before-low despite the later time.
+        assert scheduler.getPrioritizedSchedule("today") == [high_daily, low_daily]
 
 
 # --------------------------------------------------------------------------- #

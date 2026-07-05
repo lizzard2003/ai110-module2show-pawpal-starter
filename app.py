@@ -128,18 +128,20 @@ else:
     chosen_label = st.selectbox("Pet to schedule for", list(labels.keys()))
     target_pet = labels[chosen_label]
 
-    tcol1, tcol2, tcol3 = st.columns(3)
+    tcol1, tcol2, tcol3, tcol4 = st.columns(4)
     with tcol1:
         task_desc = st.text_input("Description", value="Morning walk")
     with tcol2:
         task_time = st.text_input("Time", value="08:00")
     with tcol3:
         task_freq = st.selectbox("Frequency", ["daily", "weekly", "monthly"], index=0)
+    with tcol4:
+        task_priority = st.selectbox("Priority", ["high", "medium", "low"], index=1)
 
     if st.button("Add task"):
-        task = Task(task_desc, task_time, task_freq)             # construct the Task
+        task = Task(task_desc, task_time, task_freq, priority=task_priority)  # construct the Task
         target_pet.addTask(task)                                 # <-- the class method
-        st.success(f"Added task '{task_desc}' to {target_pet.getPetName()}")
+        st.success(f"Added task '{task_desc}' ({task_priority} priority) to {target_pet.getPetName()}")
 
     # Show the chosen pet's tasks by reading back from the object.
     if target_pet.getTasks():
@@ -147,7 +149,7 @@ else:
         st.table(
             [
                 {"Description": t.getDescription(), "Time": t.getTime(),
-                 "Frequency": t.getFrequency(),
+                 "Frequency": t.getFrequency(), "Priority": t.getPriority(),
                  "Done": t.getCompletionStatus()}
                 for t in target_pet.getTasks()
             ]
@@ -186,12 +188,21 @@ else:
     else:
         st.success("✅ No scheduling conflicts.")
 
+    # Let the owner choose how the plan is ordered: chronologically, or with the
+    # highest-priority tasks first (ties still broken by time).
+    order = st.radio(
+        "Order by", ["Time", "Priority"], horizontal=True, key="sched_order"
+    )
+
     # Filter + sort using the Scheduler's own methods. 'today' maps to daily
     # tasks; the Status dropdown maps to the completed flag (None = no filter).
     frequency = "daily" if day in ("today", "daily") else day
     completed = {"All": None, "To do": False, "Done": True}[status]
-    tasks = scheduler.sort_by_time(
-        scheduler.filter_tasks(frequency=frequency, completed=completed)
+    filtered = scheduler.filter_tasks(frequency=frequency, completed=completed)
+    tasks = (
+        scheduler.sort_by_priority(filtered)
+        if order == "Priority"
+        else scheduler.sort_by_time(filtered)
     )
 
     # Headline metrics for the chosen frequency (before the status filter),
@@ -208,21 +219,27 @@ else:
     if not tasks:
         st.info(f"No '{day}' tasks matching '{status}' for {sched_owner_name}.")
     else:
+        priority_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}
         st.table(
             [
                 {
                     "Status": "✅ Done" if t.getCompletionStatus() else "🔲 To do",
                     "Time": t.getTime(),
                     "Task": t.getDescription(),
+                    "Priority": f"{priority_icon.get(t.getPriority(), '')} {t.getPriority().capitalize()}",
                     "Frequency": t.getFrequency().capitalize(),
                 }
                 for t in tasks
             ]
         )
-        # A simple "explanation" of the plan, in the same chronological order.
+        # A simple "explanation" of the plan, matching whichever ordering was chosen.
+        if order == "Priority":
+            reason = "ordered by priority (highest first), ties broken by date then time"
+        else:
+            reason = "ordered by date then time of day"
         st.markdown("**Why this plan:**")
         for t in tasks:
             st.markdown(
                 f"- **{t.getTime()}** — *{t.getDescription()}* "
-                f"(frequency matches '{day}', ordered by date then time of day)"
+                f"[{t.getPriority()} priority] (frequency matches '{day}', {reason})"
             )
