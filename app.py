@@ -1,4 +1,5 @@
 import streamlit as st
+from pawpal_system import Owner,Task,PetInformation,Scheduler
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -39,50 +40,155 @@ At minimum, your system should:
 st.divider()
 
 st.subheader("Quick Demo Inputs (UI only)")
+
+# The "vault": a dictionary of owners keyed by name (name -> Owner object).
+# Initialize it ONCE so Streamlit's re-runs don't wipe it.
+if "owners" not in st.session_state:
+    st.session_state.owners = {}
+
 owner_name = st.text_input("Owner name", value="Jordan")
-pet_name = st.text_input("Pet name", value="Mochi")
-species = st.selectbox("Species", ["dog", "cat", "other"])
 
-st.markdown("### Tasks")
-st.caption("Add a few tasks. In your final version, these should feed into your scheduler.")
+if st.button("Add owner"):
+    # THE CHECK: is an owner with this name already in the vault?
+    if owner_name in st.session_state.owners:
+        st.warning(f"'{owner_name}' already exists — not creating a duplicate.")
+    else:
+        st.session_state.owners[owner_name] = Owner(owner_name)
+        st.success(f"Added owner: {owner_name}")
 
-if "tasks" not in st.session_state:
-    st.session_state.tasks = []
+# Show everyone currently stored in the vault.
+if st.session_state.owners:
+    st.write("Current owners:")
+    st.table({"Owner": list(st.session_state.owners.keys())})
+else:
+    st.info("No owners yet. Add one above.")
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    task_title = st.text_input("Task title", value="Morning walk")
-with col2:
-    duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
-with col3:
-    priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+st.divider()
 
-if st.button("Add task"):
-    st.session_state.tasks.append(
-        {"title": task_title, "duration_minutes": int(duration), "priority": priority}
+st.markdown("### Add a Pet")
+st.caption("Pets belong to an owner. Pick an owner, then create the pet.")
+
+if not st.session_state.owners:
+    st.info("Add an owner first before adding pets.")
+else:
+    # Pick which owner this pet belongs to.
+    pet_owner_name = st.selectbox(
+        "Owner for this pet", list(st.session_state.owners.keys())
     )
 
-if st.session_state.tasks:
-    st.write("Current tasks:")
-    st.table(st.session_state.tasks)
+    pcol1, pcol2 = st.columns(2)
+    with pcol1:
+        pet_name = st.text_input("Pet name", value="Mochi")
+        pet_breed = st.text_input("Breed", value="Tabby")
+    with pcol2:
+        pet_age = st.number_input("Age", min_value=0, max_value=40, value=3)
+        pet_color = st.text_input("Color", value="Orange")
+
+    if st.button("Add pet"):
+        owner = st.session_state.owners[pet_owner_name]          # get the Owner object
+        existing = [p.getPetName() for p in owner.getPets()]
+        if pet_name in existing:
+            st.warning(f"'{pet_name}' already exists for {pet_owner_name}.")
+        else:
+            pet = PetInformation(pet_name, int(pet_age), pet_breed, pet_color)
+            owner.addPet(pet)                                    # <-- the class method
+            st.success(f"Added pet '{pet_name}' to {pet_owner_name}")
+
+    # Show this owner's pets by reading back from the object.
+    owner = st.session_state.owners[pet_owner_name]
+    if owner.getPets():
+        st.write(f"{pet_owner_name}'s pets:")
+        st.table(
+            [
+                {"Name": p.getPetName(), "Age": p.getAge(),
+                 "Breed": p.getBreed(), "Color": p.getColor(),
+                 "Tasks": p.getTaskCount()}
+                for p in owner.getPets()
+            ]
+        )
+    else:
+        st.info(f"{pet_owner_name} has no pets yet.")
+
+st.divider()
+
+st.markdown("### Schedule a Task")
+st.caption("Tasks belong to a specific pet. Pick the owner and pet, then add the task.")
+
+# Build the list of (owner, pet) pairs that currently exist in the vault.
+owner_pet_pairs = []
+for o_name, o in st.session_state.owners.items():
+    for p in o.getPets():
+        owner_pet_pairs.append((o_name, p))
+
+if not owner_pet_pairs:
+    st.info("Add an owner and a pet first before scheduling tasks.")
 else:
-    st.info("No tasks yet. Add one above.")
+    # Label each pair so the user can pick one; map the label back to the pet.
+    labels = {f"{o_name} → {p.getPetName()}": p for o_name, p in owner_pet_pairs}
+    chosen_label = st.selectbox("Pet to schedule for", list(labels.keys()))
+    target_pet = labels[chosen_label]
+
+    tcol1, tcol2, tcol3 = st.columns(3)
+    with tcol1:
+        task_desc = st.text_input("Description", value="Morning walk")
+    with tcol2:
+        task_time = st.text_input("Time", value="08:00")
+    with tcol3:
+        task_freq = st.selectbox("Frequency", ["daily", "weekly", "monthly"], index=0)
+
+    if st.button("Add task"):
+        task = Task(task_desc, task_time, task_freq)             # construct the Task
+        target_pet.addTask(task)                                 # <-- the class method
+        st.success(f"Added task '{task_desc}' to {target_pet.getPetName()}")
+
+    # Show the chosen pet's tasks by reading back from the object.
+    if target_pet.getTasks():
+        st.write(f"Tasks for {target_pet.getPetName()}:")
+        st.table(
+            [
+                {"Description": t.getDescription(), "Time": t.getTime(),
+                 "Frequency": t.getFrequency(),
+                 "Done": t.getCompletionStatus()}
+                for t in target_pet.getTasks()
+            ]
+        )
+    else:
+        st.info(f"{target_pet.getPetName()} has no tasks yet.")
 
 st.divider()
 
 st.subheader("Build Schedule")
-st.caption("This button should call your scheduling logic once you implement it.")
+st.caption("Pick an owner and a day; the Scheduler collects and orders their tasks.")
 
-if st.button("Generate schedule"):
-    st.warning(
-        "Not implemented yet. Next step: create your scheduling logic (classes/functions) and call it here."
+if not st.session_state.owners:
+    st.info("Add an owner (and some pet tasks) first to build a schedule.")
+else:
+    sched_owner_name = st.selectbox(
+        "Owner to schedule for", list(st.session_state.owners.keys()), key="sched_owner"
     )
-    st.markdown(
-        """
-Suggested approach:
-1. Design your UML (draft).
-2. Create class stubs (no logic).
-3. Implement scheduling behavior.
-4. Connect your scheduler here and display results.
-"""
-    )
+    day = st.selectbox("Day / frequency", ["today", "daily", "weekly", "monthly"])
+
+    if st.button("Generate schedule"):
+        owner = st.session_state.owners[sched_owner_name]
+        scheduler = Scheduler(owner)                       # <-- your Scheduler class
+
+        tasks = scheduler.getScheduleForDay(day)           # already sorted by time (minutes-based)
+
+        if not tasks:
+            st.warning(f"No '{day}' tasks found for {sched_owner_name}.")
+        else:
+            st.write(f"Schedule for {sched_owner_name} ({day}):")
+            st.table(
+                [
+                    {"Time": t.getTime(), "Task": t.getDescription(),
+                     "Frequency": t.getFrequency(), "Done": t.getCompletionStatus()}
+                    for t in tasks
+                ]
+            )
+            # A simple "explanation" of the plan.
+            st.markdown("**Why this plan:**")
+            for t in tasks:
+                st.markdown(
+                    f"- **{t.getTime()}** — *{t.getDescription()}* "
+                    f"(included because its frequency matches '{day}')"
+                )
