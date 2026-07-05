@@ -28,13 +28,14 @@
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+- What constraints does your scheduler consider (for example: time, priority, preferences)? It considers time .
+- How did you decide which constraints mattered most? The constraint matter the most because if you have 2 tasks at the same time they will intervine with one another and cause bad customer service.
 
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+  The redundant sort was a trade off. It would sort time over and over on each run. The other problem was that time was constraining it self with one another. This would be because we didnt know if it was 9:00 am pr 9:00 pm. That was fixed by doing a military time change.
 
 ---
 
@@ -79,3 +80,21 @@
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+# 6. Smart Scheduling
+
+a. Sorting Behaviors -
+sort_by_time() - Orders tasks chronologically earliest first,
+sortTaskVyFrequency - Groups tasls by frequency alphabetachally : daily , monthly, weekly
+detectConflicts()= Acompound (tuple) sort: conflicts are ordered by due date first then by time within a date.
+
+b. Filtering Behaviors -
+GetScheduleForDay()= first filters out frequency then sorts the time.
+
+c. Conflict Detection =
+detectConflicts()= Acompound (tuple) sort: conflicts are ordered by due date first then by time within a date.
+
+d. Reoccurance-
+Tasks are set to reoccure it is a repetitive task that is daily or weekly.
+The app also pushes to next task on the list at Task.next_occurance.
+Another trigger is completion. Once a task is marked as complete then it does not keep reoccuring meaning it will prevent outliers.

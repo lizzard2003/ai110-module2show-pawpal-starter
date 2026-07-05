@@ -128,21 +128,11 @@ class Scheduler:
         """Return tasks that are not yet complete."""
         return self.filter_tasks(completed=False)
 
-    def sortTasksByTime(self, tasks: list = None) -> list:
-        """Return tasks ordered chronologically by clock time.
-
-        Sorts the given task list, or all of the owner's tasks if none is passed.
-        Ordering is by minutes-since-midnight, so '9:00' correctly precedes '10:00'.
-        """
-        if tasks is None:
-            tasks = self.getAllTasks()
-        return sorted(tasks, key=lambda task: timeToMinutes(task.time))
-
     def sort_by_time(self, tasks: list = None) -> list:
-        """Sort Task objects by their time attribute, earliest first.
+        """Return tasks ordered chronologically, earliest first.
 
-        Sorts the provided list of tasks, or all of the owner's tasks when none is
-        given. Ordering uses minutes-since-midnight so '9:00' precedes '10:00'
+        Sorts the given task list, or all of the owner's tasks when none is passed.
+        Ordering is by minutes-since-midnight, so '9:00' correctly precedes '10:00'
         instead of sorting as plain text.
         """
         if tasks is None:
@@ -264,7 +254,7 @@ class Scheduler:
         the plan reads in the order the owner will actually do it.
         """
         frequency = "daily" if day.lower() in ("today", "daily") else day.lower()
-        return self.sortTasksByTime(self.filter_tasks(frequency=frequency))
+        return self.sort_by_time(self.filter_tasks(frequency=frequency))
 
 
 class Task:
