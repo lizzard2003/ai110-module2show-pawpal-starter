@@ -43,13 +43,13 @@
 
 **a. How you used AI**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
+- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)? I used Claude to help brainstorm and debug code.
 - What kinds of prompts or questions were most helpful?
-
-**b. Judgment and verification**
+  The most helpful question were the onces that I told Clause what I did not want .
+  **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+- How did you evaluate or verify what the AI suggested? When Claude gave me too many classes to start with my diagram. I reworded my promp to tell claude to help and not add as many classes to the diagram.
 
 ---
 
@@ -57,13 +57,13 @@
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
+- What behaviors did you test? I tested any time conflicts, If there was a time conflict there should be a warning. I also tested for repetition when it came to an owner. You do not want to keep adding owners after they have been added.
+- Why were these tests important? The tests are important for efficiancy and to detect bug. Another importance comes after the test because it mught raise other concerns you were not aware of.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+- How confident are you that your scheduler works correctly? I am 5 confident that the scheduler will work.
+- What edge cases would you test next if you had more time? I would have a clear all button to clear all the information that was input. This would allow user to add a new user, pet or task faster. I would do more schedule filtering.
 
 ---
 
@@ -72,14 +72,17 @@
 **a. What went well**
 
 - What part of this project are you most satisfied with?
+  I am satistfied with UI portion of it, it is user friendly and it is helpful after information has been inputted.
 
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
+  I would put in a database to expand on the capabity or even add a section where the user can add a picture of their pet.
 
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+  I learned that what you first design is not what you will always end up with in the end. You might want to keep it slim but then you have to count for exceptions and tests to make sure everything works well with each other.
 
 # 6. Smart Scheduling
 

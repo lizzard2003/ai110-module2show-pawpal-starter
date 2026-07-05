@@ -85,13 +85,12 @@ Sample test output:
 
 Describe your app in numbered steps so a reader can follow along without watching a video:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
-
-**Screenshot or video** _(optional)_: <!-- Insert a screenshot or link to a demo video here -->
+1. The apps first asks the user for the owners name. This is to help the pets have a relationship with a specific owner.
+2. After owner is added then we add the pet. The fields at that are required are pet name, age, color, and breed. After fields are field out then you add the pet to the owner. It will only add the pet if the pet is not in the system. The user then sees that the pet has been added to a table that shows the pets under that person.
+3. The third step is to add the tasks associated with that pet. The owner adds the task, time of task and frequency. After the task has been added then a table will list the pet name with the task and time.
+4. The next step the user gets to pick the owners name and then pick the pets name and it display the task time and frequency. If there is any time contrainst the display will show warning of this.
+5. The final display on the app is the schedule itself. It shows the status of the task and all the information needed to see where the task stands.
+   **Screenshot or video** _(optional)_: <!-- Insert a screenshot or link to a demo video here -->
 
 **Sample Output**
 
@@ -134,3 +133,25 @@ tests/test_pawpal.py ...........................................................
 
 **Confidence Level**
 I am really confident that the test passed all test edge cases for a working app. 5 star confindence.
+
+**Features**
+Chronological sorting — sort_by_time() orders tasks by (due_date, minutes-since-midnight). Times are compared numerically via timeToMinutes(), so 9:00 correctly precedes 10:00 (not sorted as text), and multi-day lists stay in true calendar order. The input list is never mutated.
+
+Multi-criteria filtering — filter_tasks() filters by any combination of pet (object or case-insensitive name), completion status, and frequency. Each criterion is optional; unknown pet names return an empty list. Convenience wrappers: getTasksByFrequency, getTasksByTime, getCompletedTasks, getIncompleteTasks.
+
+Conflict detection — detectConflicts() buckets tasks by (date, time) slot and flags any slot with 2+ tasks. Distinguishes same-pet overlaps from cross-pet clashes (same_pet flag), reports all colliding tasks and the distinct pets involved, and returns results chronologically. Two daily tasks at 09:00 on different days are not flagged.
+
+Human-readable conflict warnings — conflict_warnings() turns conflicts into UI-ready messages and is crash-safe: any unexpected error is caught and returned as a warning string rather than raising. has_conflicts() gives a safe boolean.
+
+Recurrence / next occurrence — next_occurrence() generates a fresh incomplete copy advanced by one interval:
+
+Daily / weekly advance by a fixed timedelta.
+Monthly advances by one calendar month via add_one_month(), keeping the day-of-month (15th → 15th), clamping short months (Jan 31 → Feb 28, or Feb 29 in a leap year), and rolling over the year (Dec → Jan).
+Advances from the task's own due date, not today, so completing late still lands the next task on the correct slot.
+Auto-rescheduling on completion — markTaskComplete() marks a task done and auto-attaches its next occurrence to the same pet. Guards against duplicates (won't re-complete an already-done task) and against orphaned follow-ups (returns None if the task belongs to no owned pet).
+
+Daily-plan generation — getScheduleForDay() maps today/daily to daily tasks (and weekly/monthly to their recurrences), then returns them time-sorted so the plan reads in do-order.
+
+Task aggregation across pets — Owner.getAllTasks() collects tasks from every pet so the Scheduler operates over the owner's whole roster.
+
+Input validation — timeToMinutes() enforces HH:MM (accepting single-digit hours), and Task.**init** validates time and normalizes frequency to lowercase against VALID_FREQUENCIES, raising ValueError on bad input.

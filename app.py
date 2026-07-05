@@ -163,32 +163,66 @@ st.caption("Pick an owner and a day; the Scheduler collects and orders their tas
 if not st.session_state.owners:
     st.info("Add an owner (and some pet tasks) first to build a schedule.")
 else:
-    sched_owner_name = st.selectbox(
-        "Owner to schedule for", list(st.session_state.owners.keys()), key="sched_owner"
+    fcol1, fcol2, fcol3 = st.columns(3)
+    with fcol1:
+        sched_owner_name = st.selectbox(
+            "Owner", list(st.session_state.owners.keys()), key="sched_owner"
+        )
+    with fcol2:
+        day = st.selectbox("Day / frequency", ["today", "daily", "weekly", "monthly"])
+    with fcol3:
+        status = st.selectbox("Status", ["All", "To do", "Done"])
+
+    owner = st.session_state.owners[sched_owner_name]
+    scheduler = Scheduler(owner)                       # <-- your Scheduler class
+
+    # Conflict banner across ALL of this owner's tasks, using the Scheduler's
+    # safe check (returns human-readable warnings, never raises).
+    warnings = scheduler.conflict_warnings()
+    if warnings:
+        st.warning(f"⚠️ {len(warnings)} scheduling conflict(s) detected")
+        for warning in warnings:
+            st.markdown(f"- {warning}")
+    else:
+        st.success("✅ No scheduling conflicts.")
+
+    # Filter + sort using the Scheduler's own methods. 'today' maps to daily
+    # tasks; the Status dropdown maps to the completed flag (None = no filter).
+    frequency = "daily" if day in ("today", "daily") else day
+    completed = {"All": None, "To do": False, "Done": True}[status]
+    tasks = scheduler.sort_by_time(
+        scheduler.filter_tasks(frequency=frequency, completed=completed)
     )
-    day = st.selectbox("Day / frequency", ["today", "daily", "weekly", "monthly"])
 
-    if st.button("Generate schedule"):
-        owner = st.session_state.owners[sched_owner_name]
-        scheduler = Scheduler(owner)                       # <-- your Scheduler class
+    # Headline metrics for the chosen frequency (before the status filter),
+    # so the owner always sees the full done/remaining picture.
+    all_for_freq = scheduler.filter_tasks(frequency=frequency)
+    total = len(all_for_freq)
+    done = sum(1 for t in all_for_freq if t.getCompletionStatus())
+    mcol1, mcol2, mcol3 = st.columns(3)
+    mcol1.metric("Total", total)
+    mcol2.metric("Done", done)
+    mcol3.metric("To go", total - done)
 
-        tasks = scheduler.getScheduleForDay(day)           # already sorted by time (minutes-based)
-
-        if not tasks:
-            st.warning(f"No '{day}' tasks found for {sched_owner_name}.")
-        else:
-            st.write(f"Schedule for {sched_owner_name} ({day}):")
-            st.table(
-                [
-                    {"Time": t.getTime(), "Task": t.getDescription(),
-                     "Frequency": t.getFrequency(), "Done": t.getCompletionStatus()}
-                    for t in tasks
-                ]
+    st.markdown(f"#### Schedule for {sched_owner_name} — {day} ({status})")
+    if not tasks:
+        st.info(f"No '{day}' tasks matching '{status}' for {sched_owner_name}.")
+    else:
+        st.table(
+            [
+                {
+                    "Status": "✅ Done" if t.getCompletionStatus() else "🔲 To do",
+                    "Time": t.getTime(),
+                    "Task": t.getDescription(),
+                    "Frequency": t.getFrequency().capitalize(),
+                }
+                for t in tasks
+            ]
+        )
+        # A simple "explanation" of the plan, in the same chronological order.
+        st.markdown("**Why this plan:**")
+        for t in tasks:
+            st.markdown(
+                f"- **{t.getTime()}** — *{t.getDescription()}* "
+                f"(frequency matches '{day}', ordered by date then time of day)"
             )
-            # A simple "explanation" of the plan.
-            st.markdown("**Why this plan:**")
-            for t in tasks:
-                st.markdown(
-                    f"- **{t.getTime()}** — *{t.getDescription()}* "
-                    f"(included because its frequency matches '{day}')"
-                )
