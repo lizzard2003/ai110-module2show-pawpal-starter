@@ -100,3 +100,37 @@ Describe your app in numbered steps so a reader can follow along without watchin
 - 18:00 | Feed Toby dinner (daily)
 - 12:30 | Walk Mittens (daily)```
 ````
+
+**Testing PawPal+**
+run python3 -m pytest
+
+TestTimeToMinutes — the time parser (13 tests)
+Converts "HH:MM" to minutes-since-midnight. Checks midnight/typical/end-of-day values, that single-digit 9:00 equals 09:00, and that garbage input raises ValueError (wrong shape like "0800", out-of-range like "24:00"/"08:60", non-numeric like "ab:cd").
+
+TestTask — a single task (19 tests)
+Defaults (starts incomplete, due today), frequency lowercased, time/frequency validated at construction. Big focus on recurrence (next_occurrence): daily/weekly advance by a fixed interval; monthly advances a calendar month — keeping day-of-month (15th→15th), clamping short months (Jan 31→Feb 28), leap day (Jan 31 2024→Feb 29), and year rollover (Dec→Jan). Also confirms the follow-up is a fresh, incomplete copy and advances from the task's own due date, not today.
+
+TestPetInformation / TestOwner — the data model (6 tests)
+Getters, add/remove pets and tasks, counts, and that an owner aggregates tasks across all its pets.
+
+TestSchedulerFiltering — querying tasks (9 tests)
+Filter by pet (object or case-insensitive name, unknown name → empty), by frequency (case-insensitive), completed vs. incomplete, combined filters, and lookup by clock time.
+
+TestSchedulerSorting — ordering (10 tests)
+The chronological guarantees: output is non-decreasing, 9:00 sorts before 10:00 (not as text), ties are stable, the input list isn't mutated, and ordering is date-then-time (a task due sooner comes first even if its clock time is later). Plus getScheduleForDay mapping today→daily.
+
+TestSchedulerConflicts — collision detection (8 tests)
+No conflict when times differ; flags same-pet and cross-pet clashes; a 3-way collision reports all tasks but distinct pets; same time on different dates is not a conflict; conflicts come back chronologically; human-readable warnings; and conflict_warnings never raises even if detection blows up.
+
+=================================================================== test session starts ====================================================================
+platform darwin -- Python 3.11.1, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/liz/pawpalProject/ai110-module2show-pawpal-starter
+plugins: anyio-4.14.1
+collected 75 items
+
+tests/test_pawpal.py ........................................................................... [100%]
+
+==================================================================== 75 passed in 0.25s ====================================================================
+
+**Confidence Level**
+I am really confident that the test passed all test edge cases for a working app. 5 star confindence.

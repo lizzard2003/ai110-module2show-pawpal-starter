@@ -1,12 +1,32 @@
+import calendar
 from datetime import date, timedelta
 
 VALID_FREQUENCIES = ("daily", "weekly", "monthly")
-# How far a completed task's due date advances to reach its next occurrence.
-# Only these frequencies auto-regenerate; others (e.g. monthly) do not.
+# Fixed-length steps between occurrences, for frequencies that map cleanly onto
+# a timedelta. 'monthly' is NOT here: a calendar month is not a fixed number of
+# days, so it advances via add_one_month() instead.
 RECURRENCE_DELTAS = {
     "daily": timedelta(days=1),
     "weekly": timedelta(weeks=1),
 }
+
+
+def add_one_month(day: date) -> date:
+    """Return the date one calendar month after `day`, keeping the day-of-month.
+
+    Advances to the same day in the next month rather than by a fixed number of
+    days, so a monthly routine stays anchored to its date (the 15th stays the
+    15th). When the target month is shorter, the day is clamped to that month's
+    last valid day, so Jan 31 -> Feb 28 (or Feb 29 in a leap year) instead of
+    overflowing into March.
+    """
+    month = day.month + 1
+    year = day.year
+    if month > 12:
+        month = 1
+        year += 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(day.day, last_day))
 
 
 def timeToMinutes(time: str) -> int:
@@ -132,12 +152,14 @@ class Scheduler:
         """Return tasks ordered chronologically, earliest first.
 
         Sorts the given task list, or all of the owner's tasks when none is passed.
-        Ordering is by minutes-since-midnight, so '9:00' correctly precedes '10:00'
-        instead of sorting as plain text.
+        Ordering is by (due date, minutes-since-midnight): tasks due sooner come
+        first, and within the same date the earlier clock time wins — so '9:00'
+        correctly precedes '10:00' instead of sorting as plain text. Sorting on the
+        date as well as the time keeps a multi-day list in true calendar order.
         """
         if tasks is None:
             tasks = self.getAllTasks()
-        return sorted(tasks, key=lambda task: timeToMinutes(task.time))
+        return sorted(tasks, key=lambda task: (task.due_date, timeToMinutes(task.time)))
 
     def detectConflicts(self) -> list:
         """Find tasks that collide on the same date and clock time.
@@ -226,19 +248,23 @@ class Scheduler:
     def markTaskComplete(self, task: 'Task') -> 'Task':
         """Mark a task complete and auto-schedule its next occurrence.
 
-        For recurring daily/weekly tasks, a fresh incomplete copy is added to the
-        same pet so the routine keeps going. Returns the newly created follow-up
-        Task, or None if the task does not recur (e.g. monthly) or was already
-        complete (so completing twice won't create duplicates).
+        For recurring daily/weekly/monthly tasks, a fresh incomplete copy is added
+        to the same pet so the routine keeps going. Returns the newly created
+        follow-up Task, or None when nothing is scheduled: the task's frequency
+        does not recur, the task was already complete (so completing twice won't
+        create duplicates), or the task belongs to none of this owner's pets. In
+        that last case the task is left untouched rather than silently completed,
+        since a follow-up would have no pet to attach to.
         """
         if task.completion_status:
+            return None
+        pet = self._find_owning_pet(task)
+        if pet is None:
             return None
         task.markComplete()
         follow_up = task.next_occurrence()
         if follow_up is not None:
-            pet = self._find_owning_pet(task)
-            if pet is not None:
-                pet.addTask(follow_up)
+            pet.addTask(follow_up)
         return follow_up
 
     def resetAllTasks(self) -> None:
@@ -296,17 +322,21 @@ class Task:
     def next_occurrence(self) -> 'Task':
         """Return a fresh, incomplete Task for this task's next occurrence.
 
-        Daily and weekly tasks recur, so a new copy is returned with its due date
-        advanced by one interval (using timedelta, so month/year/leap-year rollover
-        is handled correctly). The date advances from this task's own due date, not
-        from today, so completing a task late still lands the next one on the right
-        slot. Non-recurring tasks (e.g. monthly) return None.
+        Daily, weekly, and monthly tasks recur, so a new copy is returned with its
+        due date advanced by one interval. Daily/weekly advance by a fixed
+        timedelta; monthly advances by one calendar month (same day-of-month,
+        clamped for short months) via add_one_month(). The date advances from this
+        task's own due date, not from today, so completing a task late still lands
+        the next one on the right slot. A frequency that does not recur returns None.
         """
-        delta = RECURRENCE_DELTAS.get(self.frequency)
-        if delta is None:
-            return None
-        return Task(self.description, self.time, self.frequency,
-                    due_date=self.due_date + delta)
+        if self.frequency == "monthly":
+            next_due = add_one_month(self.due_date)
+        else:
+            delta = RECURRENCE_DELTAS.get(self.frequency)
+            if delta is None:
+                return None
+            next_due = self.due_date + delta
+        return Task(self.description, self.time, self.frequency, due_date=next_due)
 
     def getDescription(self) -> str:
         """Return the task description."""
